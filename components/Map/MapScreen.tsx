@@ -62,25 +62,22 @@ export default function MapScreen() {
     const [activeField, setActiveField] = useState<'origin' | 'destination'>('destination');
     const [triggerFocusUGB, setTriggerFocusUGB] = useState(false);
 
-    // 1. AUTO-PROMPT INTELIGENTE AL CARGAR LA PÁGINA (Solo para no-Apple)
+  // 1. AUTO-PROMPT AL CARGAR LA PÁGINA (Para TODOS los dispositivos)
     useEffect(() => {
         if (typeof window === 'undefined' || !navigator.geolocation) return;
 
-        // Detectar si es el ecosistema de Apple (Safari Mac, o cualquier navegador en iOS)
-        const userAgent = navigator.userAgent.toLowerCase();
-        const isSafari = userAgent.includes('safari') && !userAgent.includes('chrome') && !userAgent.includes('android');
-        const isIOS = /ipad|iphone|ipod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        const isAppleEcosystem = isSafari || isIOS;
-
-        // Si NO es Apple, lanzamos el pop-up de permiso inmediatamente al entrar
-        if (!isAppleEcosystem && !userLocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-                (err) => console.warn("Auto-GPS ignorado o denegado:", err.message),
-                { enableHighAccuracy: true, timeout: 15000 }
-            );
-        }
-    }, []); 
+        // Disparamos la petición de ubicación inmediatamente al entrar
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+            },
+            (err) => {
+                console.warn("Auto-GPS ignorado o denegado:", err.message);
+                // Si quieres, aquí puedes mostrar una alerta si falla
+            },
+            { enableHighAccuracy: true, timeout: 15000 }
+        );
+    }, []);
 
     // 2. RASTREO CONTINUO (WATCH POSITION)
     useEffect(() => {
