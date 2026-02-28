@@ -62,17 +62,17 @@ export default function MapScreen() {
     const [activeField, setActiveField] = useState<'origin' | 'destination'>('destination');
     const [triggerFocusUGB, setTriggerFocusUGB] = useState(false);
 
-    // 1. AUTO-PROMPT INTELIGENTE AL CARGAR LA PÁGINA
+    // 1. AUTO-PROMPT INTELIGENTE AL CARGAR LA PÁGINA (Solo para no-Apple)
     useEffect(() => {
         if (typeof window === 'undefined' || !navigator.geolocation) return;
 
-        // Detectar si es el ecosistema de Apple (Safari o cualquier navegador en iOS)
+        // Detectar si es el ecosistema de Apple (Safari Mac, o cualquier navegador en iOS)
         const userAgent = navigator.userAgent.toLowerCase();
         const isSafari = userAgent.includes('safari') && !userAgent.includes('chrome') && !userAgent.includes('android');
         const isIOS = /ipad|iphone|ipod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         const isAppleEcosystem = isSafari || isIOS;
 
-        // Si NO es Apple, lanzamos el pop-up de permiso inmediatamente al entrar a la app
+        // Si NO es Apple, lanzamos el pop-up de permiso inmediatamente al entrar
         if (!isAppleEcosystem && !userLocation) {
             navigator.geolocation.getCurrentPosition(
                 (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
@@ -80,10 +80,9 @@ export default function MapScreen() {
                 { enableHighAccuracy: true, timeout: 15000 }
             );
         }
-    }, []); // Se ejecuta solo una vez al montar
+    }, []); 
 
     // 2. RASTREO CONTINUO (WATCH POSITION)
-    // Se activa automáticamente en cuanto "userLocation" tiene datos (ya sea por el auto-prompt de Chrome o por el botón de Safari)
     useEffect(() => {
         if (!userLocation || !navigator.geolocation) return;
 
