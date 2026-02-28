@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Search, LocateFixed, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronDown, Search, LocateFixed, ChevronRight, Loader2, Info } from 'lucide-react';
 import { Building, Coordinate } from '../../types';
 
 interface Props {
@@ -12,15 +12,23 @@ interface Props {
 
 export const LocationSearchModal = ({ visible, onClose, title, data, onSelect }: Props) => {
     const [searchText, setSearchText] = useState('');
-    const [isLocating, setIsLocating] = useState(false); // Estado para mostrar que está cargando
+    const [isLocating, setIsLocating] = useState(false);
+    const [isAppleDevice, setIsAppleDevice] = useState(false);
 
+    // Limpiar buscador al abrir y detectar si es dispositivo Apple
     useEffect(() => {
         if (visible) setSearchText('');
+        
+        if (typeof window !== 'undefined') {
+            const userAgent = navigator.userAgent.toLowerCase();
+            const isSafari = userAgent.includes('safari') && !userAgent.includes('chrome') && !userAgent.includes('android');
+            const isIOS = /ipad|iphone|ipod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            setIsAppleDevice(isSafari || isIOS);
+        }
     }, [visible]);
 
     if (!visible) return null;
 
-    // --- MAGIA PARA SAFARI Y MOVILES AQUÍ ---
     const handleGPSClick = () => {
         if (!navigator.geolocation) {
             alert("Tu navegador no soporta geolocalización.");
@@ -32,7 +40,6 @@ export const LocationSearchModal = ({ visible, onClose, title, data, onSelect }:
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 setIsLocating(false);
-                // Si acepta, pasamos las coordenadas exactas inmediatamente
                 onSelect("Tu ubicación actual", { latitude: pos.coords.latitude, longitude: pos.coords.longitude }, true);
                 onClose();
             },
@@ -79,9 +86,8 @@ export const LocationSearchModal = ({ visible, onClose, title, data, onSelect }:
             </div>
 
             <div className="flex-1 overflow-y-auto pb-10">
-                {/* BOTÓN DE GPS ACTUALIZADO */}
                 <button 
-                    className="w-[calc(100%-40px)] mx-5 mb-6 flex items-center p-4 bg-white rounded-2xl border border-blue-600 shadow-sm text-left disabled:opacity-50"
+                    className={`w-[calc(100%-40px)] mx-5 ${isAppleDevice ? 'mb-2' : 'mb-6'} flex items-center p-4 bg-white rounded-2xl border border-blue-600 shadow-sm text-left disabled:opacity-50`}
                     onClick={handleGPSClick}
                     disabled={isLocating}
                 >
@@ -97,6 +103,16 @@ export const LocationSearchModal = ({ visible, onClose, title, data, onSelect }:
                         <p className="text-gray-500 text-sm">{isLocating ? "Buscando satélites..." : "Basado en tu GPS"}</p>
                     </div>
                 </button>
+
+                {/* NOTA EXCLUSIVA PARA USUARIOS DE APPLE / SAFARI */}
+                {isAppleDevice && (
+                    <div className="mx-5 mb-6 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl flex items-start">
+                        <Info size={18} className="text-blue-500 mr-2 shrink-0 mt-0.5" />
+                        <p className="text-xs text-blue-700 leading-relaxed">
+                            <strong>¿Falla la ubicación?</strong> Si usas iPhone o Safari, asegúrate de tocar el ícono <strong>aA</strong> en la barra superior de direcciones y seleccionar <strong>Permitir</strong> en "Ubicación".
+                        </p>
+                    </div>
+                )}
 
                 {filteredData.map((building, bIndex) => (
                     <div key={bIndex} className="mb-4">

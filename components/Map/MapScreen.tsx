@@ -16,14 +16,12 @@ import { Coordinate, RouteInstruction, LocationSelection } from '../../types';
 const CURRENT_LOCATION_OPTION: LocationSelection = { name: "Tu ubicación actual", coordinates: null, isCurrentLocation: true };
 const UGB_CENTER: [number, number] = [13.48861, -88.19208];
 
-// Subcomponente de React-Leaflet para mover el mapa dinámicamente
 function MapUpdater({ routeCoords, focusUGB }: { routeCoords: Coordinate[], focusUGB: boolean }) {
     const map = useMap();
     
     useEffect(() => {
         if (routeCoords.length > 0) {
             const bounds = L.latLngBounds(routeCoords.map(c => [c.latitude, c.longitude]));
-            // Padding para evitar que la línea quede debajo del panel inferior
             map.fitBounds(bounds, { paddingBottomRight: [0, 300], paddingTopLeft: [50, 50] });
         }
     }, [routeCoords, map]);
@@ -35,7 +33,6 @@ function MapUpdater({ routeCoords, focusUGB }: { routeCoords: Coordinate[], focu
     return null;
 }
 
-// Iconos personalizados de Leaflet
 const userIcon = new L.DivIcon({
     className: 'custom-div-icon',
     html: `<div style="width: 20px; height: 20px; background-color: white; border: 5px solid #2563eb; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
@@ -65,14 +62,34 @@ export default function MapScreen() {
     const [activeField, setActiveField] = useState<'origin' | 'destination'>('destination');
     const [triggerFocusUGB, setTriggerFocusUGB] = useState(false);
 
-    // Geolocalización: Solo empezamos a rastrear (watchPosition) si ya obtuvimos 
-    // la ubicación inicial exitosamente desde el LocationSearchModal.
+    // 1. AUTO-PROMPT INTELIGENTE AL CARGAR LA PÁGINA
+    useEffect(() => {
+        if (typeof window === 'undefined' || !navigator.geolocation) return;
+
+        // Detectar si es el ecosistema de Apple (Safari o cualquier navegador en iOS)
+        const userAgent = navigator.userAgent.toLowerCase();
+        const isSafari = userAgent.includes('safari') && !userAgent.includes('chrome') && !userAgent.includes('android');
+        const isIOS = /ipad|iphone|ipod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isAppleEcosystem = isSafari || isIOS;
+
+        // Si NO es Apple, lanzamos el pop-up de permiso inmediatamente al entrar a la app
+        if (!isAppleEcosystem && !userLocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+                (err) => console.warn("Auto-GPS ignorado o denegado:", err.message),
+                { enableHighAccuracy: true, timeout: 15000 }
+            );
+        }
+    }, []); // Se ejecuta solo una vez al montar
+
+    // 2. RASTREO CONTINUO (WATCH POSITION)
+    // Se activa automáticamente en cuanto "userLocation" tiene datos (ya sea por el auto-prompt de Chrome o por el botón de Safari)
     useEffect(() => {
         if (!userLocation || !navigator.geolocation) return;
 
         const watchId = navigator.geolocation.watchPosition(
             (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-            (err) => console.warn("GPS tracking error:", err.message),
+            (err) => console.warn("Error en rastreo GPS:", err.message),
             { enableHighAccuracy: true, maximumAge: 5000 }
         );
 
@@ -88,9 +105,8 @@ export default function MapScreen() {
         let startCoords = origin.isCurrentLocation ? userLocation : origin.coordinates;
         let endCoords = destination?.coordinates;
 
-        // Validación explícita de GPS al momento de calcular
         if (origin.isCurrentLocation && !userLocation) {
-            return alert("Aún no tenemos tu ubicación. Toca 'Desde' y selecciona 'Usar mi ubicación actual' para dar los permisos necesarios.");
+            return alert("Aún no tenemos tu ubicación. Toca 'Desde' y selecciona 'Usar mi ubicación actual' para dar los permisos.");
         }
 
         if (!startCoords || !endCoords) return alert("Faltan datos. Verifica tu origen y destino.");
@@ -110,8 +126,6 @@ export default function MapScreen() {
         
         if (activeField === 'origin') {
             setOrigin(selection);
-            // Si eligió ubicación actual en el modal, las coordenadas ya vienen en el parámetro.
-            // Las guardamos para que aparezca el punto azul y empiece el rastreo continuo del useEffect.
             if (isCurrent && coordinates) {
                 setUserLocation(coordinates);
             }
@@ -137,7 +151,6 @@ export default function MapScreen() {
                 
                 <MapUpdater routeCoords={routeCoords} focusUGB={triggerFocusUGB} />
 
-                {/* Marcadores */}
                 {userLocation && <Marker position={[userLocation.latitude, userLocation.longitude]} icon={userIcon} />}
                 {!origin.isCurrentLocation && origin.coordinates && (
                     <Marker position={[origin.coordinates.latitude, origin.coordinates.longitude]} icon={userIcon} />
@@ -146,7 +159,6 @@ export default function MapScreen() {
                     <Marker position={[destination.coordinates.latitude, destination.coordinates.longitude]} icon={destIcon} />
                 )}
 
-                {/* Línea de la ruta */}
                 {routeCoords.length > 0 && (
                     <Polyline 
                         positions={routeCoords.map(c => [c.latitude, c.longitude])} 
@@ -156,7 +168,6 @@ export default function MapScreen() {
                 )}
             </MapContainer>
 
-            {/* Botones Flotantes Superiores */}
             <button 
                 className="absolute top-6 right-5 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg z-[500]"
                 onClick={() => setIsSatellite(!isSatellite)}
@@ -192,7 +203,6 @@ export default function MapScreen() {
                 instructions={instructions} 
             />
 
-            {/* Visor de imágenes a pantalla completa */}
             {selectedImage && (
                 <div className="fixed inset-0 bg-black/95 z-[3000] flex items-center justify-center p-4">
                     <button className="absolute top-6 right-6 text-white" onClick={() => setSelectedImage(null)}>
