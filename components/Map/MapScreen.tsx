@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import { Layers, GraduationCap, MapPin, XCircle } from 'lucide-react';
+import 'leaflet/dist/leaflet.css'; // Si los cuadros del mapa se ven desordenados, mueve esta línea a tu globals.css
+import { Layers, GraduationCap, XCircle } from 'lucide-react';
 
 import { RouteControls } from './RouteControls';
 import { LocationSearchModal } from './LocationSearchModal';
@@ -15,6 +15,7 @@ import { Coordinate, RouteInstruction, LocationSelection } from '../../types';
 
 const CURRENT_LOCATION_OPTION: LocationSelection = { name: "Tu ubicación actual", coordinates: null, isCurrentLocation: true };
 const UGB_CENTER: [number, number] = [13.48861, -88.19208];
+
 // Subcomponente de React-Leaflet para mover el mapa dinámicamente
 function MapUpdater({ routeCoords, focusUGB }: { routeCoords: Coordinate[], focusUGB: boolean }) {
     const map = useMap();
@@ -56,7 +57,7 @@ export default function MapScreen() {
     const [routeCoords, setRouteCoords] = useState<Coordinate[]>([]);
     const [instructions, setInstructions] = useState<RouteInstruction[]>([]);
     const [loading, setLoading] = useState(false);
-    const [isSatellite, setIsSatellite] = useState(false); // Mapbox/Google requieren API Key en web para satélite, usaremos OSM por defecto
+    const [isSatellite, setIsSatellite] = useState(false); 
 
     const [searchVisible, setSearchVisible] = useState(false);
     const [instructionsVisible, setInstructionsVisible] = useState(false);
@@ -64,13 +65,9 @@ export default function MapScreen() {
     const [activeField, setActiveField] = useState<'origin' | 'destination'>('destination');
     const [triggerFocusUGB, setTriggerFocusUGB] = useState(false);
 
-   
-    // Geolocalización Web Mejorada
+    // Geolocalización Web Silenciosa
     useEffect(() => {
-        if (!navigator.geolocation) {
-            console.error("Tu navegador no soporta geolocalización.");
-            return;
-        }
+        if (!navigator.geolocation) return;
 
         let watchId: number;
 
@@ -79,28 +76,22 @@ export default function MapScreen() {
         };
 
         const handleError = (err: GeolocationPositionError) => {
-            console.warn("Error de GPS:", err.message);
-            if (err.code === 1) { // PERMISSION_DENIED
-                alert("Permiso denegado. Para usar 'Tu ubicación actual', debes darle permiso al navegador para acceder a tu ubicación.");
-            } else if (err.code === 2) { // POSITION_UNAVAILABLE
-                // A veces ocurre si el GPS del dispositivo está apagado
-                console.warn("La ubicación no está disponible en este momento.");
-            }
+            // Falla en silencio para no molestar al usuario apenas entra
+            console.warn("Estado del GPS:", err.message);
         };
 
-        // 1. Forzamos el prompt pidiendo la ubicación actual una vez
+        // Pedimos la ubicación. El navegador mostrará su pop-up nativo cuando esté listo.
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 handleSuccess(pos);
-                // 2. Si nos da permiso, empezamos a rastrear su movimiento
                 watchId = navigator.geolocation.watchPosition(
                     handleSuccess, 
                     handleError, 
-                    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+                    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
                 );
             },
             handleError,
-            { enableHighAccuracy: true, timeout: 10000 }
+            { enableHighAccuracy: true, timeout: 15000 }
         );
 
         return () => {
@@ -117,8 +108,12 @@ export default function MapScreen() {
         let startCoords = origin.isCurrentLocation ? userLocation : origin.coordinates;
         let endCoords = destination?.coordinates;
 
-        if (origin.isCurrentLocation && !userLocation) return alert("Esperando GPS... Tu ubicación aún no se ha detectado.");
-        if (!startCoords || !endCoords) return alert("Verifica tu origen y destino.");
+        // Validación explícita de GPS al momento de calcular
+        if (origin.isCurrentLocation && !userLocation) {
+            return alert("No pudimos obtener tu ubicación. Asegúrate de haberle dado permiso de GPS a la página en tu navegador.");
+        }
+
+        if (!startCoords || !endCoords) return alert("Faltan datos. Verifica tu origen y destino.");
 
         setLoading(true);
         const result = await fetchRoute(startCoords, endCoords);
@@ -138,14 +133,12 @@ export default function MapScreen() {
 
     return (
         <div className="relative w-full h-full bg-white flex flex-col items-center max-w-md mx-auto overflow-hidden">
-            {/* El MapContainer necesita altura y anchura explícita */}
             <MapContainer 
                 center={UGB_CENTER} 
                 zoom={17} 
                 className="w-full h-full z-0"
-                zoomControl={false} // Desactivamos botones de zoom por defecto para UI más limpia
+                zoomControl={false}
             >
-                {/* TileLayer estándar de OpenStreetMap (Reemplaza con proveedor satelital si tienes API Key) */}
                 <TileLayer
                     url={isSatellite 
                         ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" 
