@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Search, LocateFixed, ChevronRight } from 'lucide-react';
+import { ChevronDown, Search, LocateFixed, ChevronRight, Loader2 } from 'lucide-react';
 import { Building, Coordinate } from '../../types';
 
 interface Props {
@@ -12,12 +12,41 @@ interface Props {
 
 export const LocationSearchModal = ({ visible, onClose, title, data, onSelect }: Props) => {
     const [searchText, setSearchText] = useState('');
+    const [isLocating, setIsLocating] = useState(false); // Estado para mostrar que está cargando
 
     useEffect(() => {
         if (visible) setSearchText('');
     }, [visible]);
 
     if (!visible) return null;
+
+    // --- MAGIA PARA SAFARI Y MOVILES AQUÍ ---
+    const handleGPSClick = () => {
+        if (!navigator.geolocation) {
+            alert("Tu navegador no soporta geolocalización.");
+            return;
+        }
+
+        setIsLocating(true);
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                setIsLocating(false);
+                // Si acepta, pasamos las coordenadas exactas inmediatamente
+                onSelect("Tu ubicación actual", { latitude: pos.coords.latitude, longitude: pos.coords.longitude }, true);
+                onClose();
+            },
+            (err) => {
+                setIsLocating(false);
+                if (err.code === 1) {
+                    alert("Permiso denegado. Ve a la configuración de Safari (ícono aA en la barra superior) y permite la ubicación para esta página.");
+                } else {
+                    alert("No pudimos obtener tu ubicación. Asegúrate de tener el GPS encendido.");
+                }
+            },
+            { enableHighAccuracy: true, timeout: 15000 }
+        );
+    };
 
     const filteredData = searchText === '' 
         ? data 
@@ -34,7 +63,7 @@ export const LocationSearchModal = ({ visible, onClose, title, data, onSelect }:
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
                 <button onClick={onClose} className="p-2 -ml-2"><ChevronDown size={30} className="text-gray-800" /></button>
                 <h2 className="text-lg font-bold text-gray-800">{title}</h2>
-                <div className="w-10" /> {/* Spacer */}
+                <div className="w-10" />
             </div>
 
             <div className="flex items-center bg-gray-100 mx-5 my-4 px-4 py-3 rounded-xl border border-gray-200">
@@ -50,16 +79,22 @@ export const LocationSearchModal = ({ visible, onClose, title, data, onSelect }:
             </div>
 
             <div className="flex-1 overflow-y-auto pb-10">
+                {/* BOTÓN DE GPS ACTUALIZADO */}
                 <button 
-                    className="w-[calc(100%-40px)] mx-5 mb-6 flex items-center p-4 bg-white rounded-2xl border border-blue-600 shadow-sm text-left"
-                    onClick={() => { onSelect("Tu ubicación actual", null, true); onClose(); }}
+                    className="w-[calc(100%-40px)] mx-5 mb-6 flex items-center p-4 bg-white rounded-2xl border border-blue-600 shadow-sm text-left disabled:opacity-50"
+                    onClick={handleGPSClick}
+                    disabled={isLocating}
                 >
                     <div className="w-11 h-11 rounded-full bg-blue-600 flex items-center justify-center mr-4 shrink-0">
-                        <LocateFixed size={22} className="text-white" />
+                        {isLocating ? (
+                            <Loader2 size={22} className="text-white animate-spin" />
+                        ) : (
+                            <LocateFixed size={22} className="text-white" />
+                        )}
                     </div>
                     <div>
                         <p className="font-bold text-blue-600 text-base">Usar mi ubicación actual</p>
-                        <p className="text-gray-500 text-sm">Basado en tu GPS</p>
+                        <p className="text-gray-500 text-sm">{isLocating ? "Buscando satélites..." : "Basado en tu GPS"}</p>
                     </div>
                 </button>
 

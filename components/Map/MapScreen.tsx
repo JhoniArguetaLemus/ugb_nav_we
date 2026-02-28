@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css'; // Si los cuadros del mapa se ven desordenados, mueve esta línea a tu globals.css
+import 'leaflet/dist/leaflet.css';
 import { Layers, GraduationCap, XCircle } from 'lucide-react';
 
 import { RouteControls } from './RouteControls';
@@ -23,7 +23,7 @@ function MapUpdater({ routeCoords, focusUGB }: { routeCoords: Coordinate[], focu
     useEffect(() => {
         if (routeCoords.length > 0) {
             const bounds = L.latLngBounds(routeCoords.map(c => [c.latitude, c.longitude]));
-            // Padding para evitar que la línea quede debajo del panel de controles inferior
+            // Padding para evitar que la línea quede debajo del panel inferior
             map.fitBounds(bounds, { paddingBottomRight: [0, 300], paddingTopLeft: [50, 50] });
         }
     }, [routeCoords, map]);
@@ -65,39 +65,19 @@ export default function MapScreen() {
     const [activeField, setActiveField] = useState<'origin' | 'destination'>('destination');
     const [triggerFocusUGB, setTriggerFocusUGB] = useState(false);
 
-    // Geolocalización Web Silenciosa
+    // Geolocalización: Solo empezamos a rastrear (watchPosition) si ya obtuvimos 
+    // la ubicación inicial exitosamente desde el LocationSearchModal.
     useEffect(() => {
-        if (!navigator.geolocation) return;
+        if (!userLocation || !navigator.geolocation) return;
 
-        let watchId: number;
-
-        const handleSuccess = (pos: GeolocationPosition) => {
-            setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-        };
-
-        const handleError = (err: GeolocationPositionError) => {
-            // Falla en silencio para no molestar al usuario apenas entra
-            console.warn("Estado del GPS:", err.message);
-        };
-
-        // Pedimos la ubicación. El navegador mostrará su pop-up nativo cuando esté listo.
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                handleSuccess(pos);
-                watchId = navigator.geolocation.watchPosition(
-                    handleSuccess, 
-                    handleError, 
-                    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
-                );
-            },
-            handleError,
-            { enableHighAccuracy: true, timeout: 15000 }
+        const watchId = navigator.geolocation.watchPosition(
+            (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+            (err) => console.warn("GPS tracking error:", err.message),
+            { enableHighAccuracy: true, maximumAge: 5000 }
         );
 
-        return () => {
-            if (watchId) navigator.geolocation.clearWatch(watchId);
-        };
-    }, []);
+        return () => navigator.geolocation.clearWatch(watchId);
+    }, [userLocation !== null]);
 
     const activeBuilding = useMemo(() => {
         if (!destination || destination.isCurrentLocation) return null;
@@ -110,7 +90,7 @@ export default function MapScreen() {
 
         // Validación explícita de GPS al momento de calcular
         if (origin.isCurrentLocation && !userLocation) {
-            return alert("No pudimos obtener tu ubicación. Asegúrate de haberle dado permiso de GPS a la página en tu navegador.");
+            return alert("Aún no tenemos tu ubicación. Toca 'Desde' y selecciona 'Usar mi ubicación actual' para dar los permisos necesarios.");
         }
 
         if (!startCoords || !endCoords) return alert("Faltan datos. Verifica tu origen y destino.");
@@ -127,8 +107,17 @@ export default function MapScreen() {
 
     const handleSelectLocation = (name: string, coordinates: Coordinate | null, isCurrent: boolean) => {
         const selection = { name, coordinates, isCurrentLocation: isCurrent };
-        if (activeField === 'origin') setOrigin(selection);
-        else setDestination(selection);
+        
+        if (activeField === 'origin') {
+            setOrigin(selection);
+            // Si eligió ubicación actual en el modal, las coordenadas ya vienen en el parámetro.
+            // Las guardamos para que aparezca el punto azul y empiece el rastreo continuo del useEffect.
+            if (isCurrent && coordinates) {
+                setUserLocation(coordinates);
+            }
+        } else {
+            setDestination(selection);
+        }
     };
 
     return (
@@ -189,8 +178,19 @@ export default function MapScreen() {
                 onImagePress={setSelectedImage}
             />
 
-            <LocationSearchModal visible={searchVisible} onClose={() => setSearchVisible(false)} title={activeField === 'origin' ? "Punto de Partida" : "Destino"} data={BUILDINGS_DATA} onSelect={handleSelectLocation} />
-            <InstructionsModal visible={instructionsVisible} onClose={() => setInstructionsVisible(false)} instructions={instructions} />
+            <LocationSearchModal 
+                visible={searchVisible} 
+                onClose={() => setSearchVisible(false)} 
+                title={activeField === 'origin' ? "Punto de Partida" : "Destino"} 
+                data={BUILDINGS_DATA} 
+                onSelect={handleSelectLocation} 
+            />
+            
+            <InstructionsModal 
+                visible={instructionsVisible} 
+                onClose={() => setInstructionsVisible(false)} 
+                instructions={instructions} 
+            />
 
             {/* Visor de imágenes a pantalla completa */}
             {selectedImage && (
