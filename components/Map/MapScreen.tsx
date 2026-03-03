@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Layers, GraduationCap, XCircle, Locate } from 'lucide-react';
+import { Layers, GraduationCap, XCircle, Locate, Share2, Copy, Check } from 'lucide-react';
 
 import { RouteControls } from './RouteControls';
 import { LocationSearchModal } from './LocationSearchModal';
@@ -77,45 +77,56 @@ export default function MapScreen() {
   const [instructionsVisible, setInstructionsVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [activeField, setActiveField] = useState<'origin' | 'destination'>('destination');
+  const [shareVisible, setShareVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  // 1. AUTO-PROMPT AL CARGAR LA PÁGINA (Limpio y universal)
-useEffect(() => {
-  if (typeof window === 'undefined' || !navigator.geolocation) return;
+  const mapRef = React.useRef<L.Map | null>(null);
 
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-      setUserLocation(coords);
-      setOrigin(prev => prev.isCurrentLocation ? { ...prev, coordinates: coords } : prev);
-    },
-    (err) => {
-      console.warn("GPS error:", err.message);
-    },
-    { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 } // enableHighAccuracy: false para Safari
-  );
-}, []);
+  // 1. AUTO-PROMPT AL CARGAR (una sola vez)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        };
+        setUserLocation(coords);
+        setOrigin(prev =>
+          prev.isCurrentLocation ? { ...prev, coordinates: coords } : prev
+        );
+      },
+      (err) => {
+        console.warn("No se pudo obtener ubicación:", err.message);
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    );
+  }, []);
 
   // 2. SEGUIMIENTO GPS CONTINUO
   useEffect(() => {
-    if (!userLocation || !navigator.geolocation) return;
+    if (!navigator.geolocation) return;
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        setUserLocation({
+        const coords = {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude
-        });
+        };
+        setUserLocation(coords);
+        setOrigin(prev =>
+          prev.isCurrentLocation ? { ...prev, coordinates: coords } : prev
+        );
       },
-      (err) => console.warn("GPS error:", err.message),
-      { enableHighAccuracy: true, maximumAge: 5000 }
+      (err) => console.warn("GPS watch error:", err.message),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 5000 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  // Solo se reinicia si userLocation pasa de null a tener un valor (evita reinicios innecesarios)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
+  }, []);
 
-  // 3. SOLICITAR UBICACIÓN MANUAL (Botón de mira)
+  // 3. SOLICITAR UBICACIÓN MANUAL
   const requestLocation = () => {
     if (!navigator.geolocation) {
       alert("Tu navegador no soporta geolocalización");
@@ -128,7 +139,6 @@ useEffect(() => {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude
         };
-
         setUserLocation(coords);
         setOrigin({
           name: "Tu ubicación actual",
@@ -141,6 +151,12 @@ useEffect(() => {
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
     );
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const activeBuilding = useMemo(() => {
@@ -166,9 +182,7 @@ useEffect(() => {
     }
 
     setLoading(true);
-
     const result = await fetchRoute(startCoords, endCoords);
-
     setLoading(false);
 
     if (result) {
@@ -183,7 +197,6 @@ useEffect(() => {
     isCurrent: boolean
   ) => {
     const selection = { name, coordinates, isCurrentLocation: isCurrent };
-
     if (activeField === "origin") {
       setOrigin(selection);
     } else {
@@ -195,6 +208,7 @@ useEffect(() => {
     <div className="relative w-full h-full max-w-md mx-auto overflow-hidden">
 
       <MapContainer
+        ref={mapRef}
         center={UGB_CENTER}
         zoom={17}
         className="w-full h-full z-0"
@@ -247,7 +261,7 @@ useEffect(() => {
       {/* Botón Centrar UGB */}
       <button
         className="absolute top-20 right-5 bg-white p-3 rounded-full shadow z-[500]"
-        onClick={() => window.location.reload()}
+        onClick={() => mapRef.current?.setView(UGB_CENTER, 17, { animate: true })}
       >
         <GraduationCap size={24} className="text-blue-600" />
       </button>
@@ -258,6 +272,14 @@ useEffect(() => {
         onClick={requestLocation}
       >
         <Locate size={22} />
+      </button>
+
+      {/* Botón Compartir */}
+      <button
+        className="absolute top-52 right-5 bg-white p-3 rounded-full shadow z-[500]"
+        onClick={() => setShareVisible(true)}
+      >
+        <Share2 size={24} className="text-blue-600" />
       </button>
 
       <RouteControls
@@ -289,6 +311,41 @@ useEffect(() => {
         onClose={() => setInstructionsVisible(false)}
         instructions={instructions}
       />
+
+      {/* Modal Compartir */}
+      {shareVisible && (
+        <div className="fixed inset-0 bg-black/80 z-[3000] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-xs flex flex-col items-center gap-4">
+            <button
+              className="self-end text-gray-400"
+              onClick={() => setShareVisible(false)}
+            >
+              <XCircle size={28} />
+            </button>
+
+            <h2 className="text-lg font-bold text-gray-800">Compartir UGB NAV</h2>
+
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/qr.png"
+              alt="QR UGB NAV"
+              className="w-48 h-48 object-contain"
+            />
+
+            <p className="text-sm text-gray-500 text-center">
+              Escanea el QR o copia el enlace
+            </p>
+
+            <button
+              className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-full w-full justify-center"
+              onClick={handleCopyLink}
+            >
+              {copied ? <Check size={18} /> : <Copy size={18} />}
+              {copied ? "¡Copiado!" : "Copiar enlace"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Imagen */}
       {selectedImage && (
