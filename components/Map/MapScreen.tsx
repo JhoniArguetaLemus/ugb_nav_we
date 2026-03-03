@@ -78,7 +78,45 @@ export default function MapScreen() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [activeField, setActiveField] = useState<'origin' | 'destination'>('destination');
 
-  // Solicitar ubicación manual (mejor compatibilidad Safari)
+  // 1. AUTO-PROMPT AL CARGAR LA PÁGINA (Limpio y universal)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        setUserLocation(coords);
+        // Actualizar el origen si está seleccionada "Tu ubicación actual"
+        setOrigin(prev => prev.isCurrentLocation ? { ...prev, coordinates: coords } : prev);
+      },
+      (err) => {
+        console.warn("No se pudo obtener la ubicación automática:", err.message);
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  }, []);
+
+  // 2. SEGUIMIENTO GPS CONTINUO
+  useEffect(() => {
+    if (!userLocation || !navigator.geolocation) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setUserLocation({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        });
+      },
+      (err) => console.warn("GPS error:", err.message),
+      { enableHighAccuracy: true, maximumAge: 5000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  // Solo se reinicia si userLocation pasa de null a tener un valor (evita reinicios innecesarios)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userLocation !== null]); 
+
+  // 3. SOLICITAR UBICACIÓN MANUAL (Botón de mira)
   const requestLocation = () => {
     if (!navigator.geolocation) {
       alert("Tu navegador no soporta geolocalización");
@@ -105,24 +143,6 @@ export default function MapScreen() {
       { enableHighAccuracy: true, timeout: 15000 }
     );
   };
-
-  // Seguimiento GPS
-  useEffect(() => {
-    if (!userLocation || !navigator.geolocation) return;
-
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setUserLocation({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude
-        });
-      },
-      (err) => console.warn("GPS error:", err.message),
-      { enableHighAccuracy: true, maximumAge: 5000 }
-    );
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [userLocation]);
 
   const activeBuilding = useMemo(() => {
     if (!destination || destination.isCurrentLocation) return null;
@@ -178,7 +198,7 @@ export default function MapScreen() {
       <MapContainer
         center={UGB_CENTER}
         zoom={17}
-        className="w-full h-full"
+        className="w-full h-full z-0"
         zoomControl={false}
       >
         <TileLayer
@@ -217,25 +237,25 @@ export default function MapScreen() {
         )}
       </MapContainer>
 
-      {/* botón satélite */}
+      {/* Botón Satélite */}
       <button
-        className="absolute top-6 right-5 bg-white p-3 rounded-full shadow"
+        className="absolute top-6 right-5 bg-white p-3 rounded-full shadow z-[500]"
         onClick={() => setIsSatellite(!isSatellite)}
       >
-        <Layers size={24} />
+        <Layers size={24} className="text-blue-600" />
       </button>
 
-      {/* botón centrar UGB */}
+      {/* Botón Centrar UGB */}
       <button
-        className="absolute top-20 right-5 bg-white p-3 rounded-full shadow"
+        className="absolute top-20 right-5 bg-white p-3 rounded-full shadow z-[500]"
         onClick={() => window.location.reload()}
       >
-        <GraduationCap size={24} />
+        <GraduationCap size={24} className="text-blue-600" />
       </button>
 
-      {/* botón ubicación */}
+      {/* Botón Ubicación */}
       <button
-        className="absolute top-34 right-5 bg-blue-600 text-white p-3 rounded-full shadow"
+        className="absolute top-36 right-5 bg-blue-600 text-white p-3 rounded-full shadow z-[500] flex items-center justify-center"
         onClick={requestLocation}
       >
         <Locate size={22} />
@@ -271,8 +291,9 @@ export default function MapScreen() {
         instructions={instructions}
       />
 
+      {/* Modal de Imagen */}
       {selectedImage && (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/95 z-[3000] flex items-center justify-center p-4">
           <button
             className="absolute top-6 right-6 text-white"
             onClick={() => setSelectedImage(null)}
@@ -280,9 +301,11 @@ export default function MapScreen() {
             <XCircle size={40} />
           </button>
 
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={selectedImage}
-            className="max-w-full max-h-[80vh] object-contain"
+            alt="Visor"
+            className="max-w-full max-h-[80vh] object-contain rounded-xl"
           />
         </div>
       )}
