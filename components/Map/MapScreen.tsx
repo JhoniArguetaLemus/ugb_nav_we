@@ -79,22 +79,21 @@ export default function MapScreen() {
   const [activeField, setActiveField] = useState<'origin' | 'destination'>('destination');
 
   // 1. AUTO-PROMPT AL CARGAR LA PÁGINA (Limpio y universal)
-  useEffect(() => {
-    if (typeof window === 'undefined' || !navigator.geolocation) return;
+useEffect(() => {
+  if (typeof window === 'undefined' || !navigator.geolocation) return;
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-        setUserLocation(coords);
-        // Actualizar el origen si está seleccionada "Tu ubicación actual"
-        setOrigin(prev => prev.isCurrentLocation ? { ...prev, coordinates: coords } : prev);
-      },
-      (err) => {
-        console.warn("No se pudo obtener la ubicación automática:", err.message);
-      },
-      { enableHighAccuracy: true, timeout: 15000 }
-    );
-  }, []);
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      setUserLocation(coords);
+      setOrigin(prev => prev.isCurrentLocation ? { ...prev, coordinates: coords } : prev);
+    },
+    (err) => {
+      console.warn("GPS error:", err.message);
+    },
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 } // enableHighAccuracy: false para Safari
+  );
+}, []);
 
   // 2. SEGUIMIENTO GPS CONTINUO
   useEffect(() => {
@@ -114,7 +113,7 @@ export default function MapScreen() {
     return () => navigator.geolocation.clearWatch(watchId);
   // Solo se reinicia si userLocation pasa de null a tener un valor (evita reinicios innecesarios)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userLocation !== null]); 
+  }, []); 
 
   // 3. SOLICITAR UBICACIÓN MANUAL (Botón de mira)
   const requestLocation = () => {
@@ -140,7 +139,7 @@ export default function MapScreen() {
       (err) => {
         alert("No se pudo obtener la ubicación: " + err.message);
       },
-      { enableHighAccuracy: true, timeout: 15000 }
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
     );
   };
 
