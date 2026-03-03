@@ -189,6 +189,7 @@ export const LocationSearchModal = ({ visible, onClose, title, data, onSelect }:
                     </div>
                 ))}
             </div>
+            
         </div>
     );
 };

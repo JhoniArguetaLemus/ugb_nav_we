@@ -11,7 +11,7 @@ export const BuildingGallery = ({ title, images, onImagePress }: Props) => {
 
     return (
         <div className="mb-5 mt-1">
-            <h4 className="text-sm font-bold text-gray-500 mb-2 ml-1">📸 {title}</h4>
+            <h4 className="text-sm font-bold text-white mb-2 ml-1">📸 {title}</h4>
             <div className="flex overflow-x-auto gap-3 pb-2 snap-x">
                 {images.map((imgSrc, index) => (
                     <button key={index} onClick={() => onImagePress(imgSrc)} className="shrink-0 snap-start">

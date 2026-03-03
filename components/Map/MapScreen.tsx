@@ -336,13 +336,19 @@ export default function MapScreen() {
               Escanea el QR o copia el enlace
             </p>
 
+          
+
             <button
               className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-full w-full justify-center"
               onClick={handleCopyLink}
             >
               {copied ? <Check size={18} /> : <Copy size={18} />}
               {copied ? "¡Copiado!" : "Copiar enlace"}
+
+
             </button>
+
+            
           </div>
         </div>
       )}
@@ -365,6 +371,8 @@ export default function MapScreen() {
           />
         </div>
       )}
+
+     
     </div>
   );
 }
